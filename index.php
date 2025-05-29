@@ -4,10 +4,8 @@
 //if a configuration file 'ri-config.php' (or other specified) is found, the config here is overridden. Note, that the external config file should be complete!
 
 //Version control
-$major=1;
-$minor=2;
-$security=1;
-
+$version = 2;
+$security = 1;
 
 $config_file = 'config.php';
 $use_config_file = true;
