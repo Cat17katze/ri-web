@@ -1,207 +1,303 @@
 <?php
+set_time_limit(0);
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+$targetDir = __DIR__;
+
+// CONFIGURATION
+// GitHub repo info:
+$githubUser = 'Cat17katze';
+$githubRepo = 'ri-web';
+$githubBranch = 'main';  // or master, or tag/branch name
+
+// Password from config.php if defined
+$update_password = null;
+if (file_exists($targetDir . '/config.php')) {
+    @include $targetDir . '/config.php';
+    if (isset($update_password)) {
+        $update_password = trim($update_password);
+        if ($update_password === '') $update_password = null;
+    }
+}
+
 session_start();
-include __DIR__ . '/config.php';
 
-$localPath = __DIR__ . '/index.php';
-$remoteUrl = $github_index_url;
-$backupDir = __DIR__ . '/backups';
-
-if (!is_dir($backupDir)) mkdir($backupDir);
-
-function extractVersions($code) {
-    preg_match('/\$version\s*=\s*(\d+);/', $code, $v);
-    preg_match('/\$security\s*=\s*(\d+);/', $code, $s);
-    return ($v && $s) ? ['version' => (int)$v[1], 'security' => (int)$s[1]] : null;
-}
-
-function extractReleaseNotes($code) {
-    preg_match('/\/\/\s*Release Notes:\s*(https?:\/\/\S+)/', $code, $m);
-    return $m[1] ?? null;
-}
-
-function getBackupList($dir) {
-    $files = glob($dir . '/index.php.bak_*.zip');
-    usort($files, fn($a, $b) => filemtime($b) - filemtime($a));
-    return $files;
-}
-
-function createBackupZip($indexPath, $backupDir) {
-    $timestamp = date('Ymd_His');
-    $zipPath = "$backupDir/index.php.bak_{$timestamp}.zip";
-
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath, ZipArchive::CREATE) !== true) return false;
-
-    $zip->addFile($indexPath, 'index.php');
-    $zip->close();
-    return $zipPath;
-}
-
-function restoreBackupZip($zipPath, $targetPath) {
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath) !== true) return false;
-
-    $contents = $zip->getFromName('index.php');
-    if (!$contents) return false;
-
-    $zip->close();
-    return file_put_contents($targetPath, $contents) !== false;
-}
-
-$localCode  = @file_get_contents($localPath);
-$remoteCode = @file_get_contents($remoteUrl);
-
-if (!$localCode || !$remoteCode) die("Fehler beim Laden.");
-
-$local  = extractVersions($localCode);
-$remote = extractVersions($remoteCode);
-$notes  = extractReleaseNotes($remoteCode);
-
-if (!$local || !$remote) die("Versionsfehler.");
-
-$updateAvailable = $remote['version'] > $local['version'];
-$securityUpdate  = $remote['security'] > $local['security'];
-
-$log = "";
-$message = "";
-
-// --- Login ---
-if (!isset($_SESSION['logged_in'])) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['password'] === $update_password) {
-        $_SESSION['logged_in'] = true;
-        header('Location: ' . $_SERVER['PHP_SELF']);
-        exit;
+function redirectToSelf($params = []) {
+    $url = $_SERVER['PHP_SELF'];
+    if (!empty($params)) {
+        $url .= '?' . http_build_query($params);
     }
-    ?>
-    <h2>🔐 Update Login</h2>
-    <form method="POST">
-        Passwort: <input type="password" name="password">
-        <button>Login</button>
-    </form>
-    <?php exit;
-}
-
-// --- Restore from backup ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restore_backup'])) {
-    $zipName = basename($_POST['restore_backup']);
-    $zipPath = $backupDir . '/' . $zipName;
-
-    if (file_exists($zipPath) && strpos($zipName, 'index.php.bak_') === 0) {
-        $preRestore = $backupDir . '/index.php.pre_restore_' . date('Ymd_His') . '.zip';
-        createBackupZip($localPath, $backupDir); // backup before restore
-
-        if (restoreBackupZip($zipPath, $localPath)) {
-            $message = "<p style='color:green;'>Backup wiederhergestellt: $zipName</p>";
-            $log = "[" . date('Y-m-d H:i:s') . "] Wiederhergestellt von Backup: $zipName\n";
-            file_put_contents(__DIR__ . '/update.log', $log, FILE_APPEND);
-            foreach ($update_log_emails as $to) {
-                mail($to, "Backup restored", $log);
-            }
-        } else {
-            $message = "<p style='color:red;'>Wiederherstellung fehlgeschlagen.</p>";
-        }
-    }
-}
-
-// --- Manual update ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_update'])) {
-    if (!createBackupZip($localPath, $backupDir)) {
-        $message = "<p style='color:red;'>Backup fehlgeschlagen.</p>";
-    } elseif (file_put_contents($localPath, $remoteCode) === false) {
-        $message = "<p style='color:red;'>Update fehlgeschlagen.</p>";
-    } else {
-        $message = "<p style='color:green;'>Update erfolgreich!</p>";
-        $log = "[" . date('Y-m-d H:i:s') . "] Manual update auf v{$remote['version']} (sec {$remote['security']})\n";
-        if ($notes) $log .= "Release Notes: $notes\n";
-        file_put_contents(__DIR__ . '/update.log', $log, FILE_APPEND);
-        foreach ($update_log_emails as $to) {
-            mail($to, "Update erfolgreich installiert", $log);
-        }
-
-        $local = $remote;
-        $updateAvailable = $securityUpdate = false;
-    }
-}
-
-// --- Logout ---
-if (isset($_POST['logout'])) {
-    session_destroy();
-    header('Location: ' . $_SERVER['PHP_SELF']);
+    header("Location: $url");
     exit;
 }
 
-// --- GUI ---
-$allBackups = getBackupList($backupDir);
-$newestBackups = array_slice($allBackups, 0, 10);
-$olderBackups  = array_slice($allBackups, 10);
+if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+    session_destroy();
+    redirectToSelf();
+}
+
+// Password protection
+if ($update_password !== null) {
+    if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
+            if ($_POST['password'] === $update_password) {
+                $_SESSION['authenticated'] = true;
+                redirectToSelf();
+            } else {
+                $login_error = "Ungültiges Passwort.";
+            }
+        }
+
+        ?>
+        <!DOCTYPE html>
+        <html lang="de"><head><meta charset="UTF-8" /><title>Login</title></head><body>
+        <h2>Bitte Passwort eingeben</h2>
+        <?php if (!empty($login_error)): ?>
+            <p style="color:red;"><?=htmlspecialchars($login_error)?></p>
+        <?php endif; ?>
+        <form method="POST">
+            <input type="password" name="password" autofocus required />
+            <button type="submit">Anmelden</button>
+        </form>
+        </body></html>
+        <?php
+        exit;
+    }
+}
+
+// GitHub API base URL for contents:
+$apiBase = "https://api.github.com/repos/$githubUser/$githubRepo/contents/";
+
+// User-Agent header required by GitHub API
+$userAgent = "PHP Installer Script";
+
+// Optional: add your GitHub token here to increase rate limits (leave empty if none)
+$githubToken = '';
+
+// Helper: do HTTP GET with headers and return decoded JSON or false on error
+function githubApiGet($url, $token = '') {
+    global $userAgent;
+    $headers = [
+        "User-Agent: $userAgent",
+        "Accept: application/vnd.github.v3+json"
+    ];
+    if ($token !== '') {
+        $headers[] = "Authorization: token $token";
+    }
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FAILONERROR, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $code >= 400) {
+        return false;
+    }
+
+    $json = json_decode($response, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return false;
+    }
+
+    return $json;
+}
+
+// Recursively get all files in the repo at a path
+function getRepoFilesRecursively($path = '') {
+    global $apiBase, $githubToken;
+
+    $fullUrl = $apiBase . ($path === '' ? '' : $path);
+    $items = githubApiGet($fullUrl, $githubToken);
+    if ($items === false) {
+        throw new Exception("Fehler beim Abrufen der Repo-Inhalte für Pfad: $path");
+    }
+    $files = [];
+    foreach ($items as $item) {
+        if ($item['type'] === 'file') {
+            $files[] = $item['path'];
+        } elseif ($item['type'] === 'dir') {
+            $files = array_merge($files, getRepoFilesRecursively($item['path']));
+        }
+        // ignore symlinks and submodules for simplicity
+    }
+    return $files;
+}
+
+// Download raw file content by repo path
+function downloadRawFile($path) {
+    global $githubUser, $githubRepo, $githubBranch;
+
+    // Raw content URL format:
+    // https://raw.githubusercontent.com/{user}/{repo}/{branch}/{path}
+    $url = "https://raw.githubusercontent.com/$githubUser/$githubRepo/$githubBranch/$path";
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FAILONERROR, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $content = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($content === false || $code >= 400) {
+        throw new Exception("Fehler beim Herunterladen der Datei $path vom Raw-URL.");
+    }
+    return $content;
+}
+
+// Save file content to target dir with folder creation
+function saveFile($targetDir, $relativePath, $content) {
+    $dstPath = $targetDir . DIRECTORY_SEPARATOR . $relativePath;
+    $dstDir = dirname($dstPath);
+    if (!is_dir($dstDir)) {
+        if (!mkdir($dstDir, 0755, true)) {
+            throw new Exception("Konnte Verzeichnis $dstDir nicht erstellen.");
+        }
+    }
+    if (file_put_contents($dstPath, $content) === false) {
+        throw new Exception("Fehler beim Schreiben der Datei $dstPath");
+    }
+}
+
+// State messages
+$message = '';
+$error = false;
+
+// Confirm actions flow: step 1: user clicks button => show confirm page => step 2: user confirms => execute
+
+$action = $_POST['action'] ?? null;
+$confirm = isset($_POST['confirm']) && $_POST['confirm'] === 'yes';
+
+if ($action && !$confirm) {
+    // Show confirmation form
+    ?>
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Aktion bestätigen</title>
+        <style>
+            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
+            button { font-size: 1.1em; padding: 0.5em 1em; margin: 0.5em 0; }
+        </style>
+    </head>
+    <body>
+        <h1>Aktion bestätigen</h1>
+        <p>Bitte bestätigen Sie, dass Sie die Aktion <strong><?=htmlspecialchars($action)?></strong> ausführen möchten.</p>
+        <form method="POST">
+            <input type="hidden" name="action" value="<?=htmlspecialchars($action)?>" />
+            <input type="hidden" name="confirm" value="yes" />
+            <button type="submit">Ja, ausführen</button>
+            <button type="button" onclick="window.history.back()">Abbrechen</button>
+        </form>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+if ($action && $confirm) {
+    try {
+        if ($action === 'full_install') {
+            $files = getRepoFilesRecursively('');
+            $count = 0;
+            foreach ($files as $file) {
+                $content = downloadRawFile($file);
+                saveFile($targetDir, $file, $content);
+                $count++;
+            }
+            $message = "✅ Vollständige Installation abgeschlossen. $count Dateien kopiert und ggf. ersetzt.";
+        } elseif ($action === 'rescue') {
+            $filesToRestore = ['index.php', 'config.php'];
+            $count = 0;
+            foreach ($filesToRestore as $file) {
+                $content = downloadRawFile($file);
+                saveFile($targetDir, $file, $content);
+                $count++;
+            }
+            $message = "✅ Rettungsmodus ausgeführt: index.php und config.php wurden ersetzt.";
+        } elseif ($action === 'remove_installer') {
+            $self = __FILE__;
+            if (unlink($self)) {
+                echo "<p>✅ Installer-Skript erfolgreich entfernt.</p>";
+                echo "<p><a href=\"./\">Zurück zur Hauptseite</a></p>";
+                exit;
+            } else {
+                throw new Exception("Installer-Skript konnte nicht gelöscht werden.");
+            }
+        } else {
+            throw new Exception("Unbekannte Aktion.");
+        }
+    } catch (Exception $e) {
+        $message = "❌ Fehler: " . $e->getMessage();
+        $error = true;
+    }
+}
+
 ?>
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8"><title>Updater</title>
-    <style>
-        .hidden { display: none; }
-        .backup-list form { display:inline; }
-    </style>
-    <script>
-        function toggleOldBackups() {
-            let el = document.getElementById("olderBackups");
-            el.classList.toggle("hidden");
-        }
-    </script>
+<meta charset="UTF-8" />
+<title>Installer mit GitHub Repo - Direkt Download</title>
+<style>
+    body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
+    button { font-size: 1.1em; padding: 0.5em 1em; margin: 0.5em 0; }
+    .message { margin: 1em 0; font-weight: bold; }
+    .error { color: red; }
+    .success { color: green; }
+    form.inline { display: inline; }
+    .logout { float: right; font-size: 0.9em; }
+</style>
 </head>
 <body>
-<h2>🛠 Update System</h2>
 
-<p><strong>Lokale Version:</strong> <?= $local['version'] ?> (Security <?= $local['security'] ?>)</p>
-<p><strong>Remote Version:</strong> <?= $remote['version'] ?> (Security <?= $remote['security'] ?>)</p>
+<div class="logout"><form method="GET"><button name="action" value="logout" type="submit">Abmelden</button></form></div>
 
-<?php if ($notes): ?>
-    <p><strong>🔗 Release Notes:</strong> <a href="<?= htmlspecialchars($notes) ?>" target="_blank"><?= htmlspecialchars($notes) ?></a></p>
+<h1>Installation / Rettungsmodus</h1>
+
+<?php if ($message): ?>
+    <div class="message <?= $error ? 'error' : 'success' ?>">
+        <?=htmlspecialchars($message)?>
+    </div>
 <?php endif; ?>
 
-<?= $message ?>
-
-<?php if ($securityUpdate): ?>
-    <p style="color:red;">⚠️ Sicherheitsupdate verfügbar!</p>
-    <form method="POST"><button name="do_update">Jetzt installieren</button></form>
-<?php elseif ($updateAvailable): ?>
-    <p>Neues Update verfügbar.</p>
-    <form method="POST"><button name="do_update">Update auf <?= $remote['version'] ?> durchführen</button></form>
-<?php else: ?>
-    <p>✅ System aktuell.</p>
-<?php endif; ?>
-
-<h3>🔙 Backups (letzte 10 ZIPs)</h3>
-<ul class="backup-list">
-<?php foreach ($newestBackups as $zipFile): ?>
-    <li>
-        <?= basename($zipFile) ?>
-        <form method="POST">
-            <input type="hidden" name="restore_backup" value="<?= htmlspecialchars(basename($zipFile)) ?>">
-            <button>Wiederherstellen</button>
-        </form>
-    </li>
-<?php endforeach; ?>
-</ul>
-
-<?php if (!empty($olderBackups)): ?>
-    <a href="javascript:void(0);" onclick="toggleOldBackups()">📂 Weitere Backups anzeigen</a>
-    <ul id="olderBackups" class="backup-list hidden">
-    <?php foreach ($olderBackups as $zipFile): ?>
-        <li>
-            <?= basename($zipFile) ?>
-            <form method="POST">
-                <input type="hidden" name="restore_backup" value="<?= htmlspecialchars(basename($zipFile)) ?>">
-                <button>Wiederherstellen</button>
-            </form>
-        </li>
-    <?php endforeach; ?>
-    </ul>
-<?php endif; ?>
-
-<form method="POST" style="margin-top:2em;">
-    <button name="logout">Abmelden</button>
+<form method="POST" class="inline">
+    <input type="hidden" name="action" value="full_install" />
+    <button type="submit">🚀 Vollständige Installation (alle Dateien aus GitHub Repo kopieren und ersetzen)</button>
 </form>
+
+<form method="POST" class="inline">
+    <input type="hidden" name="action" value="rescue" />
+    <button type="submit">🛠️ Rettungsmodus (nur index.php und config.php ersetzen)</button>
+</form>
+
+<form method="POST" class="inline" onsubmit="return confirm('Möchten Sie das Installer-Skript wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
+    <input type="hidden" name="action" value="remove_installer" />
+    <button type="submit" style="background:#cc4444; color:#fff;">❌ Installer entfernen</button>
+</form>
+
+<p><em>Hinweis:</em>  
+<ul>
+    <li>Die Dateien werden direkt per GitHub API heruntergeladen (keine ZIP-Dateien).</li>
+    <li>Nur Repo-Dateien werden kopiert oder ersetzt.</li>
+    <li>Existierende Dateien mit anderen Namen bleiben erhalten.</li>
+    <li>Bitte überprüfen Sie, dass <code>$githubUser</code>, <code>$githubRepo</code> und <code>$githubBranch</code> korrekt gesetzt sind.</li>
+    <li>Wenn in <code>config.php</code> ein <code>$update_password</code> definiert ist, ist ein Login erforderlich.</li>
+</ul>
+</p>
+
 </body>
 </html>
