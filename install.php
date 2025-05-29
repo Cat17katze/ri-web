@@ -1,83 +1,58 @@
 <?php
-set_time_limit(0);
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// ========== CONFIG ==========
+$githubUser = 'Cat17katze'; // replace with your GitHub username/org
+$githubRepo = 'ri-web';       // replace with your GitHub repo name
+$githubBranch = 'main';                // usually 'main' or 'master'
 
-$targetDir = __DIR__;
+$configFile = __DIR__ . '/config.php';
+$installerFilename = basename(__FILE__);
 
-// CONFIGURATION
-// GitHub repo info:
-$githubUser = 'Cat17katze';
-$githubRepo = 'ri-web';
-$githubBranch = 'main';  // or master, or tag/branch name
-
-// Password from config.php if defined
+// Load config.php if exists to get $update_password
 $update_password = null;
-if (file_exists($targetDir . '/config.php')) {
-    @include $targetDir . '/config.php';
-    if (isset($update_password)) {
-        $update_password = trim($update_password);
-        if ($update_password === '') $update_password = null;
-    }
+if (file_exists($configFile)) {
+    include_once $configFile;
 }
 
-session_start();
-
-function redirectToSelf($params = []) {
-    $url = $_SERVER['PHP_SELF'];
-    if (!empty($params)) {
-        $url .= '?' . http_build_query($params);
-    }
-    header("Location: $url");
-    exit;
-}
-
-if (isset($_GET['action']) && $_GET['action'] === 'logout') {
-    session_destroy();
-    redirectToSelf();
-}
-
-// Password protection
-if ($update_password !== null) {
-    if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
+// Check for password if set
+if (isset($update_password) && !empty($update_password)) {
+    session_start();
+    if (!isset($_SESSION['installer_authenticated'])) {
+        if (isset($_POST['password'])) {
             if ($_POST['password'] === $update_password) {
-                $_SESSION['authenticated'] = true;
-                redirectToSelf();
+                $_SESSION['installer_authenticated'] = true;
             } else {
-                $login_error = "Ungültiges Passwort.";
+                echo "<h2>Falsches Passwort.</h2>";
+                showPasswordForm();
+                exit;
             }
+        } else {
+            showPasswordForm();
+            exit;
         }
-
-        ?>
-        <!DOCTYPE html>
-        <html lang="de"><head><meta charset="UTF-8" /><title>Login</title></head><body>
-        <h2>Bitte Passwort eingeben</h2>
-        <?php if (!empty($login_error)): ?>
-            <p style="color:red;"><?=htmlspecialchars($login_error)?></p>
-        <?php endif; ?>
-        <form method="POST">
-            <input type="password" name="password" autofocus required />
-            <button type="submit">Anmelden</button>
-        </form>
-        </body></html>
-        <?php
-        exit;
     }
 }
 
-// GitHub API base URL for contents:
-$apiBase = "https://api.github.com/repos/$githubUser/$githubRepo/contents/";
+function showPasswordForm() {
+    global $installerFilename;
+    echo <<<HTML
+    <h2>Passwort erforderlich</h2>
+    <form method="post" action="$installerFilename">
+      Passwort: <input type="password" name="password" required>
+      <button type="submit">Login</button>
+    </form>
+HTML;
+}
 
-// User-Agent header required by GitHub API
-$userAgent = "PHP Installer Script";
+// GitHub API user agent (required)
+$userAgent = 'PHP Installer Script';
 
-// Optional: add your GitHub token here to increase rate limits (leave empty if none)
-$githubToken = '';
+// ------------------
+// HELPER FUNCTIONS
+// ------------------
 
-// Helper: do HTTP GET with headers and return decoded JSON or false on error
 function githubApiGet($url, $token = '') {
     global $userAgent;
+
     $headers = [
         "User-Agent: $userAgent",
         "Accept: application/vnd.github.v3+json"
@@ -86,19 +61,17 @@ function githubApiGet($url, $token = '') {
         $headers[] = "Authorization: token $token";
     }
 
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_FAILONERROR, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    $opts = [
+        "http" => [
+            "method" => "GET",
+            "header" => implode("\r\n", $headers),
+            "timeout" => 30
+        ]
+    ];
+    $context = stream_context_create($opts);
 
-    $response = curl_exec($ch);
-    $err = curl_error($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $code >= 400) {
+    $response = @file_get_contents($url, false, $context);
+    if ($response === false) {
         return false;
     }
 
@@ -106,19 +79,41 @@ function githubApiGet($url, $token = '') {
     if (json_last_error() !== JSON_ERROR_NONE) {
         return false;
     }
-
     return $json;
 }
 
-// Recursively get all files in the repo at a path
-function getRepoFilesRecursively($path = '') {
-    global $apiBase, $githubToken;
+function downloadRawFile($path) {
+    global $githubUser, $githubRepo, $githubBranch;
 
-    $fullUrl = $apiBase . ($path === '' ? '' : $path);
-    $items = githubApiGet($fullUrl, $githubToken);
-    if ($items === false) {
-        throw new Exception("Fehler beim Abrufen der Repo-Inhalte für Pfad: $path");
+    $url = "https://raw.githubusercontent.com/$githubUser/$githubRepo/$githubBranch/$path";
+
+    $opts = [
+        "http" => [
+            "method" => "GET",
+            "header" => "User-Agent: PHP Installer Script\r\n",
+            "timeout" => 30
+        ]
+    ];
+    $context = stream_context_create($opts);
+
+    $content = @file_get_contents($url, false, $context);
+    if ($content === false) {
+        throw new Exception("Fehler beim Herunterladen der Datei $path vom Raw-URL.");
     }
+    return $content;
+}
+
+// Recursively get all files in GitHub repo at given path
+function getRepoFilesRecursively($path = '') {
+    global $githubUser, $githubRepo, $githubBranch;
+
+    $url = "https://api.github.com/repos/$githubUser/$githubRepo/contents/$path?ref=$githubBranch";
+
+    $items = githubApiGet($url);
+    if ($items === false) {
+        throw new Exception("Fehler beim Abrufen der Repo-Dateiliste von GitHub API: $url");
+    }
+
     $files = [];
     foreach ($items as $item) {
         if ($item['type'] === 'file') {
@@ -126,178 +121,143 @@ function getRepoFilesRecursively($path = '') {
         } elseif ($item['type'] === 'dir') {
             $files = array_merge($files, getRepoFilesRecursively($item['path']));
         }
-        // ignore symlinks and submodules for simplicity
     }
     return $files;
 }
 
-// Download raw file content by repo path
-function downloadRawFile($path) {
-    global $githubUser, $githubRepo, $githubBranch;
+function copyFileFromRepo($filePath) {
+    $content = downloadRawFile($filePath);
 
-    // Raw content URL format:
-    // https://raw.githubusercontent.com/{user}/{repo}/{branch}/{path}
-    $url = "https://raw.githubusercontent.com/$githubUser/$githubRepo/$githubBranch/$path";
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_FAILONERROR, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-    $content = curl_exec($ch);
-    $err = curl_error($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($content === false || $code >= 400) {
-        throw new Exception("Fehler beim Herunterladen der Datei $path vom Raw-URL.");
-    }
-    return $content;
-}
-
-// Save file content to target dir with folder creation
-function saveFile($targetDir, $relativePath, $content) {
-    $dstPath = $targetDir . DIRECTORY_SEPARATOR . $relativePath;
-    $dstDir = dirname($dstPath);
-    if (!is_dir($dstDir)) {
-        if (!mkdir($dstDir, 0755, true)) {
-            throw new Exception("Konnte Verzeichnis $dstDir nicht erstellen.");
+    $destPath = __DIR__ . '/' . $filePath;
+    $dir = dirname($destPath);
+    if (!is_dir($dir)) {
+        if (!mkdir($dir, 0777, true)) {
+            throw new Exception("Fehler beim Erstellen des Verzeichnisses: $dir");
         }
     }
-    if (file_put_contents($dstPath, $content) === false) {
-        throw new Exception("Fehler beim Schreiben der Datei $dstPath");
+
+    if (file_put_contents($destPath, $content) === false) {
+        throw new Exception("Fehler beim Schreiben der Datei: $destPath");
     }
 }
 
-// State messages
-$message = '';
-$error = false;
+function confirmForm($action) {
+    global $installerFilename;
+    $msg = '';
+    switch ($action) {
+        case 'install':
+            $msg = 'Alle Dateien aus dem Repo werden installiert und bestehende Dateien im Repo-Set werden ersetzt. Fortfahren?';
+            break;
+        case 'rescue':
+            $msg = 'Nur index.php und config.php werden aus dem Repo ersetzt. Fortfahren?';
+            break;
+        case 'remove':
+            $msg = 'Dieser Installer wird dauerhaft entfernt. Fortfahren?';
+            break;
+        default:
+            $msg = 'Fortfahren?';
+    }
 
-// Confirm actions flow: step 1: user clicks button => show confirm page => step 2: user confirms => execute
-
-$action = $_POST['action'] ?? null;
-$confirm = isset($_POST['confirm']) && $_POST['confirm'] === 'yes';
-
-if ($action && !$confirm) {
-    // Show confirmation form
-    ?>
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Aktion bestätigen</title>
-        <style>
-            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
-            button { font-size: 1.1em; padding: 0.5em 1em; margin: 0.5em 0; }
-        </style>
-    </head>
-    <body>
-        <h1>Aktion bestätigen</h1>
-        <p>Bitte bestätigen Sie, dass Sie die Aktion <strong><?=htmlspecialchars($action)?></strong> ausführen möchten.</p>
-        <form method="POST">
-            <input type="hidden" name="action" value="<?=htmlspecialchars($action)?>" />
-            <input type="hidden" name="confirm" value="yes" />
-            <button type="submit">Ja, ausführen</button>
-            <button type="button" onclick="window.history.back()">Abbrechen</button>
-        </form>
-    </body>
-    </html>
-    <?php
-    exit;
+    echo <<<HTML
+    <h2>Bestätigung benötigt</h2>
+    <p>$msg</p>
+    <form method="post" action="$installerFilename">
+      <input type="hidden" name="confirm_action" value="$action">
+      <button type="submit" name="confirm" value="yes">Ja, fortfahren</button>
+      <button type="submit" name="confirm" value="no">Abbrechen</button>
+    </form>
+HTML;
 }
 
-if ($action && $confirm) {
-    try {
-        if ($action === 'full_install') {
-            $files = getRepoFilesRecursively('');
-            $count = 0;
-            foreach ($files as $file) {
-                $content = downloadRawFile($file);
-                saveFile($targetDir, $file, $content);
-                $count++;
-            }
-            $message = "✅ Vollständige Installation abgeschlossen. $count Dateien kopiert und ggf. ersetzt.";
-        } elseif ($action === 'rescue') {
-            $filesToRestore = ['index.php', 'config.php'];
-            $count = 0;
-            foreach ($filesToRestore as $file) {
-                $content = downloadRawFile($file);
-                saveFile($targetDir, $file, $content);
-                $count++;
-            }
-            $message = "✅ Rettungsmodus ausgeführt: index.php und config.php wurden ersetzt.";
-        } elseif ($action === 'remove_installer') {
-            $self = __FILE__;
-            if (unlink($self)) {
-                echo "<p>✅ Installer-Skript erfolgreich entfernt.</p>";
-                echo "<p><a href=\"./\">Zurück zur Hauptseite</a></p>";
-                exit;
-            } else {
-                throw new Exception("Installer-Skript konnte nicht gelöscht werden.");
-            }
-        } else {
-            throw new Exception("Unbekannte Aktion.");
+// -------------
+// MAIN LOGIC
+// -------------
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Handle confirmation forms first
+    if (isset($_POST['confirm_action'])) {
+        $action = $_POST['confirm_action'];
+        if (!isset($_POST['confirm']) || $_POST['confirm'] !== 'yes') {
+            echo "<p>Aktion '$action' wurde abgebrochen.</p>";
+            echo "<p><a href='$installerFilename'>Zurück</a></p>";
+            exit;
         }
-    } catch (Exception $e) {
-        $message = "❌ Fehler: " . $e->getMessage();
-        $error = true;
+
+        try {
+            switch ($action) {
+                case 'install':
+                    $files = getRepoFilesRecursively();
+                    foreach ($files as $file) {
+                        copyFileFromRepo($file);
+                    }
+                    echo "<p>Installation abgeschlossen! Alle Dateien wurden installiert.</p>";
+                    break;
+
+                case 'rescue':
+                    $filesToRestore = ['index.php', 'config.php'];
+                    foreach ($filesToRestore as $file) {
+                        copyFileFromRepo($file);
+                    }
+                    echo "<p>Rettung abgeschlossen! index.php und config.php wurden ersetzt.</p>";
+                    break;
+
+                case 'remove':
+                    // Remove this installer script file
+                    if (unlink(__FILE__)) {
+                        echo "<p>Installer wurde entfernt.</p>";
+                        exit;
+                    } else {
+                        echo "<p>Fehler beim Entfernen des Installers.</p>";
+                    }
+                    break;
+
+                default:
+                    echo "<p>Unbekannte Aktion.</p>";
+            }
+        } catch (Exception $e) {
+            echo "<p><strong>Fehler:</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
+        }
+
+        echo "<p><a href='$installerFilename'>Zurück zur Startseite</a></p>";
+        exit;
+    }
+
+    // If user clicked a main button, show confirmation form
+    if (isset($_POST['action'])) {
+        $action = $_POST['action'];
+        confirmForm($action);
+        exit;
     }
 }
 
+// Show main UI
 ?>
 
 <!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<title>Installer mit GitHub Repo - Direkt Download</title>
+<title>Installer / Rettungs-Script</title>
 <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
-    button { font-size: 1.1em; padding: 0.5em 1em; margin: 0.5em 0; }
-    .message { margin: 1em 0; font-weight: bold; }
-    .error { color: red; }
-    .success { color: green; }
-    form.inline { display: inline; }
-    .logout { float: right; font-size: 0.9em; }
+    body { font-family: Arial, sans-serif; margin: 2em; }
+    button { margin: 0.5em 0; padding: 0.5em 1em; font-size: 1em; }
+    form { margin-bottom: 1em; }
 </style>
 </head>
 <body>
-
-<div class="logout"><form method="GET"><button name="action" value="logout" type="submit">Abmelden</button></form></div>
-
-<h1>Installation / Rettungsmodus</h1>
-
-<?php if ($message): ?>
-    <div class="message <?= $error ? 'error' : 'success' ?>">
-        <?=htmlspecialchars($message)?>
-    </div>
-<?php endif; ?>
-
-<form method="POST" class="inline">
-    <input type="hidden" name="action" value="full_install" />
-    <button type="submit">🚀 Vollständige Installation (alle Dateien aus GitHub Repo kopieren und ersetzen)</button>
+<h1>Installer / Rettungs-Script</h1>
+<p>GitHub Repo: <strong><?= htmlspecialchars("$githubUser/$githubRepo") ?></strong> (Branch: <?= htmlspecialchars($githubBranch) ?>)</p>
+<form method="post" action="<?= $installerFilename ?>">
+  <button type="submit" name="action" value="install">Volle Installation (alle Repo-Dateien kopieren, ersetzen)</button>
 </form>
 
-<form method="POST" class="inline">
-    <input type="hidden" name="action" value="rescue" />
-    <button type="submit">🛠️ Rettungsmodus (nur index.php und config.php ersetzen)</button>
+<form method="post" action="<?= $installerFilename ?>">
+  <button type="submit" name="action" value="rescue">Rettung: Nur index.php und config.php ersetzen</button>
 </form>
 
-<form method="POST" class="inline" onsubmit="return confirm('Möchten Sie das Installer-Skript wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
-    <input type="hidden" name="action" value="remove_installer" />
-    <button type="submit" style="background:#cc4444; color:#fff;">❌ Installer entfernen</button>
+<form method="post" action="<?= $installerFilename ?>">
+  <button type="submit" name="action" value="remove" style="color: red;">Installer entfernen</button>
 </form>
-
-<p><em>Hinweis:</em>  
-<ul>
-    <li>Die Dateien werden direkt per GitHub API heruntergeladen (keine ZIP-Dateien).</li>
-    <li>Nur Repo-Dateien werden kopiert oder ersetzt.</li>
-    <li>Existierende Dateien mit anderen Namen bleiben erhalten.</li>
-    <li>Bitte überprüfen Sie, dass <code>$githubUser</code>, <code>$githubRepo</code> und <code>$githubBranch</code> korrekt gesetzt sind.</li>
-    <li>Wenn in <code>config.php</code> ein <code>$update_password</code> definiert ist, ist ein Login erforderlich.</li>
-</ul>
-</p>
 
 </body>
 </html>
