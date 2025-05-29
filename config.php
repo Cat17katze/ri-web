@@ -1,3 +1,4 @@
+<?php
 // Configuration file for the RiWeb file cms
 
 //in - file configuration, only used, if no config file is found/ deactivated
@@ -31,3 +32,5 @@ $page_default = 'home.php'; //displayed home page (nothing is specified, must be
 $update_password = 'changeme!'; //password used for accessing the update.php
 $github_index_url = 'https://raw.githubusercontent.com/Cat17katze/ri-web/refs/heads/main/index.php'; //update source, change if you maintain your own.
 $update_log_emails = ['mail@example.com']; //Mail adresses for sending infos like log data
+
+?>
