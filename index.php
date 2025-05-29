@@ -627,6 +627,10 @@ if (checkConfig($config_file, $use_config_file)) {
                 $requestedFile = $_GET['b'] ?? (file_exists($defaultIndexFile) ? $defaultIndexFile : null);
                 require_once 'Parsedown.php';
 
+                if ($_GET['b']==='') {
+                    $requestedFile = $defaultIndexFile;
+                }
+
                 
                 echo '<div style="margin-left:5%;margin-right:5%">';
                 echo '<h1>Rileys Blog</h1>';
