@@ -3,19 +3,17 @@ set_time_limit(0);
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// ======= CONFIG: Set this to the absolute path of your repo root =======
-$repoSource = '/path/to/your/local/repo'; // << CHANGE this!!
-
-if (!is_dir($repoSource)) {
-    die("Repo source path does not exist or is not a directory. Please set \$repoSource correctly.");
-}
-
 $targetDir = __DIR__;
 
-// Try to get $update_password from config.php if exists
+// CONFIGURATION
+// GitHub repo info:
+$githubUser = 'Cat17katze';
+$githubRepo = 'ri-web';
+$githubBranch = 'main';  // or master, or tag/branch name
+
+// Password from config.php if defined
 $update_password = null;
 if (file_exists($targetDir . '/config.php')) {
-    // Suppress errors if config.php has errors
     @include $targetDir . '/config.php';
     if (isset($update_password)) {
         $update_password = trim($update_password);
@@ -34,13 +32,12 @@ function redirectToSelf($params = []) {
     exit;
 }
 
-// Handle logout action
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     session_destroy();
     redirectToSelf();
 }
 
-// Password required check
+// Password protection
 if ($update_password !== null) {
     if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
@@ -52,12 +49,9 @@ if ($update_password !== null) {
             }
         }
 
-        // Show login form and exit
         ?>
         <!DOCTYPE html>
-        <html lang="de">
-        <head><meta charset="UTF-8" /><title>Login</title></head>
-        <body>
+        <html lang="de"><head><meta charset="UTF-8" /><title>Login</title></head><body>
         <h2>Bitte Passwort eingeben</h2>
         <?php if (!empty($login_error)): ?>
             <p style="color:red;"><?=htmlspecialchars($login_error)?></p>
@@ -66,41 +60,114 @@ if ($update_password !== null) {
             <input type="password" name="password" autofocus required />
             <button type="submit">Anmelden</button>
         </form>
-        </body>
-        </html>
+        </body></html>
         <?php
         exit;
     }
 }
 
-// Helper functions
+// GitHub API base URL for contents:
+$apiBase = "https://api.github.com/repos/$githubUser/$githubRepo/contents/";
 
-function getAllRepoFiles($dir, $baseDir) {
+// User-Agent header required by GitHub API
+$userAgent = "PHP Installer Script";
+
+// Optional: add your GitHub token here to increase rate limits (leave empty if none)
+$githubToken = '';
+
+// Helper: do HTTP GET with headers and return decoded JSON or false on error
+function githubApiGet($url, $token = '') {
+    global $userAgent;
+    $headers = [
+        "User-Agent: $userAgent",
+        "Accept: application/vnd.github.v3+json"
+    ];
+    if ($token !== '') {
+        $headers[] = "Authorization: token $token";
+    }
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FAILONERROR, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $code >= 400) {
+        return false;
+    }
+
+    $json = json_decode($response, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return false;
+    }
+
+    return $json;
+}
+
+// Recursively get all files in the repo at a path
+function getRepoFilesRecursively($path = '') {
+    global $apiBase, $githubToken;
+
+    $fullUrl = $apiBase . ($path === '' ? '' : $path);
+    $items = githubApiGet($fullUrl, $githubToken);
+    if ($items === false) {
+        throw new Exception("Fehler beim Abrufen der Repo-Inhalte für Pfad: $path");
+    }
     $files = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::LEAVES_ONLY
-    );
-    foreach ($iterator as $file) {
-        if ($file->isFile()) {
-            $fullPath = $file->getRealPath();
-            $relative = substr($fullPath, strlen($baseDir) + 1);
-            $files[] = $relative;
+    foreach ($items as $item) {
+        if ($item['type'] === 'file') {
+            $files[] = $item['path'];
+        } elseif ($item['type'] === 'dir') {
+            $files = array_merge($files, getRepoFilesRecursively($item['path']));
         }
+        // ignore symlinks and submodules for simplicity
     }
     return $files;
 }
 
-function copyRepoFile($repoSource, $targetDir, $relativePath) {
-    $srcPath = $repoSource . DIRECTORY_SEPARATOR . $relativePath;
-    $dstPath = $targetDir . DIRECTORY_SEPARATOR . $relativePath;
+// Download raw file content by repo path
+function downloadRawFile($path) {
+    global $githubUser, $githubRepo, $githubBranch;
 
+    // Raw content URL format:
+    // https://raw.githubusercontent.com/{user}/{repo}/{branch}/{path}
+    $url = "https://raw.githubusercontent.com/$githubUser/$githubRepo/$githubBranch/$path";
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FAILONERROR, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $content = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($content === false || $code >= 400) {
+        throw new Exception("Fehler beim Herunterladen der Datei $path vom Raw-URL.");
+    }
+    return $content;
+}
+
+// Save file content to target dir with folder creation
+function saveFile($targetDir, $relativePath, $content) {
+    $dstPath = $targetDir . DIRECTORY_SEPARATOR . $relativePath;
     $dstDir = dirname($dstPath);
     if (!is_dir($dstDir)) {
-        mkdir($dstDir, 0755, true);
+        if (!mkdir($dstDir, 0755, true)) {
+            throw new Exception("Konnte Verzeichnis $dstDir nicht erstellen.");
+        }
     }
-
-    return copy($srcPath, $dstPath);
+    if (file_put_contents($dstPath, $content) === false) {
+        throw new Exception("Fehler beim Schreiben der Datei $dstPath");
+    }
 }
 
 // State messages
@@ -109,7 +176,6 @@ $error = false;
 
 // Confirm actions flow: step 1: user clicks button => show confirm page => step 2: user confirms => execute
 
-// Read action + confirmation
 $action = $_POST['action'] ?? null;
 $confirm = isset($_POST['confirm']) && $_POST['confirm'] === 'yes';
 
@@ -144,22 +210,23 @@ if ($action && !$confirm) {
 if ($action && $confirm) {
     try {
         if ($action === 'full_install') {
-            $repoFiles = getAllRepoFiles($repoSource, $repoSource);
-
-            foreach ($repoFiles as $file) {
-                if (!copyRepoFile($repoSource, $targetDir, $file)) {
-                    throw new Exception("Fehler beim Kopieren von $file");
-                }
+            $files = getRepoFilesRecursively('');
+            $count = 0;
+            foreach ($files as $file) {
+                $content = downloadRawFile($file);
+                saveFile($targetDir, $file, $content);
+                $count++;
             }
-            $message = "✅ Vollständige Installation abgeschlossen. Alle Repo-Dateien wurden kopiert und ggf. überschrieben.";
+            $message = "✅ Vollständige Installation abgeschlossen. $count Dateien kopiert und ggf. ersetzt.";
         } elseif ($action === 'rescue') {
             $filesToRestore = ['index.php', 'config.php'];
+            $count = 0;
             foreach ($filesToRestore as $file) {
-                if (!copyRepoFile($repoSource, $targetDir, $file)) {
-                    throw new Exception("Fehler beim Wiederherstellen von $file");
-                }
+                $content = downloadRawFile($file);
+                saveFile($targetDir, $file, $content);
+                $count++;
             }
-            $message = "✅ Rettungsmodus ausgeführt: index.php und config.php wurden erfolgreich ersetzt.";
+            $message = "✅ Rettungsmodus ausgeführt: index.php und config.php wurden ersetzt.";
         } elseif ($action === 'remove_installer') {
             $self = __FILE__;
             if (unlink($self)) {
@@ -184,7 +251,7 @@ if ($action && $confirm) {
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<title>Installer mit Passwortschutz</title>
+<title>Installer mit GitHub Repo - Direkt Download</title>
 <style>
     body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
     button { font-size: 1.1em; padding: 0.5em 1em; margin: 0.5em 0; }
@@ -209,7 +276,7 @@ if ($action && $confirm) {
 
 <form method="POST" class="inline">
     <input type="hidden" name="action" value="full_install" />
-    <button type="submit">🚀 Vollständige Installation (alle Repo-Dateien kopieren und ersetzen)</button>
+    <button type="submit">🚀 Vollständige Installation (alle Dateien aus GitHub Repo kopieren und ersetzen)</button>
 </form>
 
 <form method="POST" class="inline">
@@ -224,9 +291,10 @@ if ($action && $confirm) {
 
 <p><em>Hinweis:</em>  
 <ul>
+    <li>Die Dateien werden direkt per GitHub API heruntergeladen (keine ZIP-Dateien).</li>
     <li>Nur Repo-Dateien werden kopiert oder ersetzt.</li>
     <li>Existierende Dateien mit anderen Namen bleiben erhalten.</li>
-    <li>Bitte überprüfen Sie, dass <code>$repoSource</code> im Skript korrekt gesetzt ist.</li>
+    <li>Bitte überprüfen Sie, dass <code>$githubUser</code>, <code>$githubRepo</code> und <code>$githubBranch</code> korrekt gesetzt sind.</li>
     <li>Wenn in <code>config.php</code> ein <code>$update_password</code> definiert ist, ist ein Login erforderlich.</li>
 </ul>
 </p>
