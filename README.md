@@ -19,4 +19,5 @@ This repo contains the RiWeb software written in php. It is developed for people
 - Currently: Check for updates maually as the update notifications are not implemented yet.
 
 ## Additional Notes
-- This is software under development! Features may and will change. Removal is not planned, but possible. Always read in my release notes, when important changes to the config system is made. Sometimes new keys are added. 
+- This is software under development! Features may and will change. Removal is not planned, but possible. Always read in my release notes, when important changes to the config system is made. Sometimes new keys are added.
+- This software is provided as it. Please always update your data. I am not responsible for data loss.
