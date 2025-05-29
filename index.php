@@ -1,11 +1,13 @@
 <?php
+// Release Notes: https://riley-tech.de/w/index.php?b=Software%2FRiWeb%2FReleaseNotes.md
+
+//Version control
+$version = 3;
+$security = 1;
+
 //configuration area
 //here you can configure, which extensions are used, and which are not used. The variable name means the component.
 //if a configuration file 'ri-config.php' (or other specified) is found, the config here is overridden. Note, that the external config file should be complete!
-
-//Version control
-$version = 2;
-$security = 1;
 
 $config_file = 'config.php';
 $use_config_file = true;
@@ -623,11 +625,10 @@ if (checkConfig($config_file, $use_config_file)) {
             } elseif (isset($_GET['b']) and $blog) {
                 $defaultIndexFile = 'index.md';
                 $requestedFile = $_GET['b'] ?? (file_exists($defaultIndexFile) ? $defaultIndexFile : null);
-                require_once 'Parsedown.php';
-
                 if ($_GET['b']==='') {
                     $requestedFile = $defaultIndexFile;
                 }
+                require_once 'Parsedown.php';
 
                 
                 echo '<div style="margin-left:5%;margin-right:5%">';
