@@ -1,6 +1,6 @@
 <?php
 
-// Configuration file for the RiWeb file cms
+// Configuration file for the RiWeb file cms. This file will be not affected by updates.
 
 //in - file configuration, only used, if no config file is found/ deactivated
 //the variables with an Capital Letter define the name of the file, the one with a lower one define, if the component is used
