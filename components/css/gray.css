@@ -1,0 +1,16 @@
+[data-selected-theme="gray"] {
+    --color-background-primary: #AAAAAA;
+    --color-background-button: #FFCCCC;
+    --color-background-second: #CCCCCC;
+    
+    --color-text-primary: #000000;
+    --color-text-button: #441111;
+    --color-text-second: #444444;
+    
+    --color-background-rt:#333333;
+    --color-text-rt:#FFAAAA;
+    
+    --color-border:#222222;
+    
+    --color-accent: #AA8888;
+}
