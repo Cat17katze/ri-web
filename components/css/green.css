@@ -1,0 +1,17 @@
+
+[data-selected-theme="green"] {
+    --color-background-primary: #002200;
+    --color-background-button: #114411;
+    --color-background-second: #00AA00;
+    
+    --color-text-primary: #22FF22;
+    --color-text-button: #22FF22;
+    --color-text-second: #003300;
+    
+    --color-background-rt:#115511;
+    --color-text-rt:#11FF11;
+    
+    --color-border:#33FF33;
+    
+    --color-accent: #AA8888;
+}
