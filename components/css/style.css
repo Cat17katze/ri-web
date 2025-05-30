@@ -1,0 +1,246 @@
+:root, [data-selected-theme="ri"] {
+--color-background-primary: #FFAAAA;
+--color-background-button: #DD9999;
+--color-background-second: #884444;
+
+--color-text-primary: #220000;
+--color-text-button: #551111;
+--color-text-second: #FFAAAA;
+
+--color-background-rt:#330000;
+--color-text-rt:#FFAAAA;
+
+--color-border:#882222;
+
+--color-accent: #AA8888;
+}
+.content {
+background-color:var(--color-background-primary);
+color:var(--color-text-primary);
+display: flex; 
+flex-direction: column; 
+justify-content: space-evenly;
+min-height:90vh;
+}
+
+body {
+font-family: sans-serif;
+background-color:#000000;
+margin: 0;
+padding: 0;
+color: var(--color-text-primary);
+}
+
+.h {
+visibility: collapse;
+}
+
+a, summary, button {
+color: var(--color-text-button);
+background-color:var(--color-background-button);
+border-style:solid;
+border-width:2px;
+border-color:var(--color-border);
+border-radius:3px; 
+text-decoration:none;
+min-height:3vh;
+padding:5px;
+padding-top:0px; 
+padding-bottom:0px;
+margin:10px;
+}
+
+a:hover, summary:hover, button:hover {
+background-color: var(--color-background-second);
+color: var(--color-text-second);
+}
+
+h1, h2, h3, h4, h5, h6 {
+padding-top:0px;
+padding-bottom:0px;
+
+margin:0px;
+
+font-weight:bold;
+}
+
+h1 {font-size:2.0em}
+h2 {font-size:1.9em}
+h3 {font-size:1.8em}
+h4 {font-size:1.7em}
+h5 {font-size:1.6em}
+h6 {font-size:1.5em}
+
+
+block {
+background-color:rgba(255,255,255,0.1);
+
+color:var(--color-text-primary);
+
+text-decoration:none;
+font-family: Verdana, Geneva, Tahoma, sans-serif;
+display: block;
+border: 2px hidden;
+border-radius: 5px;
+padding-bottom: 5px;
+padding-left: 5px;
+margin: 2px;
+text-align: center;
+width: auto;
+}
+
+nav {
+background-color: var(--color-background-second);
+padding: 10px;
+}
+
+nav ul {
+background-color: var(--color-background-primary);
+list-style: none;
+margin: 0;
+padding: 0;
+display: flex;
+justify-content: space-around;
+flex-wrap: wrap;
+}
+
+nav li {
+position: relative;
+width:auto;
+}
+
+nav a {
+color: var(--color-text-button);
+background-color:var(--color-background-button);
+text-decoration: none;
+padding: 5px 10px;
+display: block;
+width:auto;
+}
+
+nav a:hover {
+background-color: var(--color-background-second);
+color: var(--color-text-second);
+}
+
+nav ul ul {
+display: none;
+position: absolute;
+top: 100%;
+left: 0;
+background-color: rgba(10,10,10,0.1);
+box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+z-index: 1;
+flex-direction: column;
+}
+
+nav ul ul li {
+width: 100%;
+}
+
+nav ul ul a {
+padding: 10px;
+}
+
+nav ul ul a:hover {
+background-color: #ddd;
+}
+
+.has-submenu > a::after {
+content: " \21F2";
+margin-left: 5px;
+}
+
+.has-submenu.open > a::after {
+transform: rotate(90deg);
+transition: transform 0.2s ease;
+}
+
+.has-submenu.open > ul {
+display: flex;
+}
+
+#content {
+padding: 2px;
+}
+
+@media (max-width: 800px) {
+nav ul {
+    flex-direction: column;
+    align-items: center;
+}
+
+.rt-text {
+    font-family: monospace;
+    font-size: max(0.3vw, 0.2rem);
+    max-width:90vw;
+}
+
+nav li {
+    width: 100%;
+    text-align: center;
+}
+
+nav ul ul {
+    position: relative;
+    top: 0;
+    left: 0;
+}
+body {
+    font-size: 1.2em;
+}
+}
+
+@media (min-width: 800px) {
+nav {
+    position: sticky;
+    top: 0;
+    left: 0;
+}
+.rt-text {
+    font-family: monospace;
+    font-size: max(0.3vw, 0.3rem);
+    max-width:90vw;
+}
+}
+
+
+.rt-text {
+color:var(--color-text-rt); 
+display: flex; 
+flex-direction: column; 
+justify-content: flex-end;
+}
+
+.theme-switcher {
+color:inherit;
+background-color: inherit;
+margin:5px;
+padding:10px;
+border: 2px;
+border-color: var(--color-border);
+border-radius:5px;
+text-align: center;
+}
+
+input, textarea {
+color:var(--color-text-second);
+background-color: var(--color-background-second);
+border: 2px;
+border-color:var(--color-border);
+border-radius:2px;
+}
+
+footer {
+text-align: center;
+left: 0;
+bottom: 0; 
+display: flex; 
+flex-direction: column; 
+justify-content: flex-end; 
+width:100%; 
+height:100%;
+color:var(--color-text-second);
+background-color: var(--color-accent);
+font-family: monospace;
+}
