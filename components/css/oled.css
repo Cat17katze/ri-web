@@ -1,0 +1,16 @@
+[data-selected-theme="oled"] {
+    --color-background-primary: #000000;
+    --color-background-button: #220000;
+    --color-background-second: #111111;
+    
+    --color-text-primary: #FFFFFF;
+    --color-text-button: #FFBBBB;
+    --color-text-second: #FFFFFF;
+    
+    --color-background-rt:#111111;
+    --color-text-rt:#FFBBBB;
+    
+    --color-border:#AAAAAA;
+    
+    --color-accent: #AA8888;
+}
