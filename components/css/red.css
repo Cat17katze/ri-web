@@ -1,0 +1,17 @@
+
+[data-selected-theme="red"] {
+    --color-background-primary: #000000;
+    --color-background-button: #881111;
+    --color-background-second: #BB1111;
+    
+    --color-text-primary: #FF1111;
+    --color-text-button: #FF1111;
+    --color-text-second: #441111;
+    
+    --color-background-rt:#110000;
+    --color-text-rt:#FF0000;
+    
+    --color-border:#CC2222;
+    
+    --color-accent: #AA8888;
+}
