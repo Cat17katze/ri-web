@@ -1,9 +1,4 @@
 <?php
-// Release Notes: https://riley-tech.de/w/index.php?b=Software%2FRiWeb%2F1.3%2F1-3-0.md
-
-//Version control
-$version = 4;
-$security = 1;
 
 //configuration area
 //here you can configure, which extensions are used, and which are not used. The variable name means the component.
