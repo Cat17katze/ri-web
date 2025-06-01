@@ -1,5 +1,5 @@
 <?php
-// Release Notes: https://riley-tech.de/w/index.php?b=Software%2FRiWeb%2FReleaseNotes.md
+// Release Notes: https://riley-tech.de/w/index.php?b=Software%2FRiWeb%2F1.3%2F1-3-0.md
 
 //Version control
 $version = 4;
