@@ -2,7 +2,7 @@
 // Release Notes: https://riley-tech.de/w/index.php?b=Software%2FRiWeb%2FReleaseNotes.md
 
 //Version control
-$version = 3;
+$version = 4;
 $security = 1;
 
 //configuration area
