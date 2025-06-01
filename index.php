@@ -13,7 +13,7 @@ $config_file = 'config.php';
 $use_config_file = true;
 
 function checkConfig($config_file, $use_config_file) {
-    if (isset($external_css, $External_css, $navbar, $Navbar, $motd, $Motd, $footer, $Footer, $blog, $Blog_dir, $download, $Download_config, $page, $allowed_pages, $Page_dir)) {
+    if (isset($navbar, $Navbar, $motd, $Motd, $footer, $Footer, $blog, $Blog_dir, $download, $Download_config, $page, $allowed_pages, $Page_dir, $defaultTheme, $themeSelectorEnabled, $cssFolder)) {
         return true;
     } else {
         return false;
@@ -37,8 +37,11 @@ if ($use_config_file ==false) {
     
     //in - file configuration, only used, if no config file is found/ deactivated
     //the variables with an Capital Letter define the name of the file, the one with a lower one define, if the component is used
-    $external_css=false; //do you want to load external css. Currently not supported!
-    $External_css='';
+    
+    $defaultTheme = 'ri';                    // Use 'ri' if not set
+    $themeSelectorEnabled = true;   // Enable selector unless explicitly disabled
+    $cssFolder = __DIR__ . '/components/css';  // Default theme CSS folder
+    
     
     // components of the page. please place them into the specified folder. In the config, the path must not be included, it is default.
     $Components_dir=__DIR__ . '/components/';
@@ -102,8 +105,12 @@ if (checkConfig($config_file, $use_config_file)) {
         $debug = $debug . "<p style='color:red; background-color:black;'>Error: Your in- file config has errors! please fix it asap! The configuration is in rescue mode now!</p>";
         
         $use_config_file = false;
-        $external_css=false;
-        $External_css='';
+        
+        $defaultTheme = 'ri';                    // Use 'ri' if not set
+        $themeSelectorEnabled = false;   // Enable selector unless explicitly disabled
+        $cssFolder = __DIR__ . '/components/css';  // Default theme CSS folder
+    
+        
         $navbar=false;
         $Navbar='';
         $motd=false; 
@@ -138,6 +145,100 @@ if (checkConfig($config_file, $use_config_file)) {
     
         return $result;
     }
+    
+
+    
+    function renderThemeSelector() {
+        global $defaultTheme, $themeSelectorEnabled, $cssFolder;
+    
+        // Validate folder
+        if (!is_dir($cssFolder) || !is_readable($cssFolder)) {
+            $themeSelectorEnabled = false;
+        }
+    
+        // Collect available themes
+        $availableThemes = [];
+        if ($themeSelectorEnabled) {
+            $files = scandir($cssFolder);
+            foreach ($files as $file) {
+                if (is_file("$cssFolder/$file") && preg_match('/^(.*)\.css$/i', $file, $matches)) {
+                    $availableThemes[] = $matches[1];
+                }
+            }
+    
+            // Ensure 'ri' is available as fallback
+            if (!in_array('ri', $availableThemes)) {
+                array_unshift($availableThemes, 'ri');
+            }
+    
+            // Ensure valid default
+            if (!in_array($defaultTheme, $availableThemes)) {
+                $defaultTheme = 'ri';
+            }
+        } else {
+            $availableThemes = ['ri'];
+            $defaultTheme = 'ri';
+        }
+        ?>
+    
+        <?php if ($themeSelectorEnabled): ?>
+        <script>
+          const availableThemes = <?php echo json_encode($availableThemes); ?>;
+          const defaultTheme = '<?php echo $defaultTheme; ?>';
+    
+          function applyTheme(theme) {
+            if (!availableThemes.includes(theme)) theme = defaultTheme;
+    
+            document.documentElement.setAttribute('data-selected-theme', theme);
+    
+            const existingLink = document.getElementById('theme-css');
+    
+            if (theme === 'ri') {
+              if (existingLink) existingLink.remove();
+            } else {
+              if (existingLink) {
+                existingLink.href = `/components/css/${theme}.css`;
+              } else {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.id = 'theme-css';
+                link.href = `/components/css/${theme}.css`;
+                document.head.appendChild(link);
+              }
+            }
+    
+            localStorage.setItem('selectedTheme', theme);
+          }
+    
+          document.addEventListener('DOMContentLoaded', () => {
+            const storedTheme = localStorage.getItem('selectedTheme') || defaultTheme;
+            applyTheme(storedTheme);
+    
+            const selector = document.getElementById('themeSelector');
+            if (selector) selector.value = storedTheme;
+          });
+        </script>
+    
+        <div style="color:var(--color-text-rt);text-align: center;padding:5px">
+          <label for="themeSelector">Theme:</label>
+          <select style='color:black;text-align: center;padding:5px' id="themeSelector" onchange="applyTheme(this.value)">
+            <?php foreach ($availableThemes as $theme): ?>
+              <option value="<?php echo htmlspecialchars($theme); ?>"><?php echo strtoupper($theme); ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <?php else: ?>
+          <?php if ($defaultTheme !== 'ri'): ?>
+            <link rel="stylesheet" id="theme-css" href="/components/css/<?php echo htmlspecialchars($defaultTheme); ?>.css" />
+          <?php endif; ?>
+        <?php endif; ?>
+    
+        <script>window.applyTheme = applyTheme;</script>
+    
+        <?php
+    }
+
+
     
     function loadNamesMap($dir)
     {
@@ -560,21 +661,9 @@ if (checkConfig($config_file, $use_config_file)) {
     <?php 
         if($motd) {
         include $Components_dir . $Motd;
-        $quote =htmlspecialchars(GetExt("https://riley-tech.de/w/api/site/return-161/"));
-        echo "<p style='color:var(--color-text-rt);text-align: center;'> $quote </p>";
         }
+        renderThemeSelector();
     ?>
-    
-    <div class="theme-switcher">
-        <p style="color:var(--color-text-rt)"> Thema: 
-        <button data-theme="ri" aria-pressed="true">ri</button>
-        <button data-theme="green" aria-pressed="false">green</button>
-        <button data-theme="red" aria-pressed="false">red-black</button>
-        <button data-theme="oled" aria-pressed="false">oled</button>
-        <button data-theme="gray" aria-pressed="false">gray</button>
-        </p>
-    </div>
-    
     </div>
     <div id="content" class="content">
         <?php
@@ -680,43 +769,22 @@ if (checkConfig($config_file, $use_config_file)) {
     </script>
     
     <script>
-        const pressedButtonSelector = '[data-theme][aria-pressed="true"]';
-        const defaultTheme = 'ri';
-        
-        const applyTheme = (theme) => {
-            const target = document.querySelector(`[data-theme="${theme}"]`);
-            document.documentElement.setAttribute("data-selected-theme", theme);
-            document.querySelector(pressedButtonSelector).setAttribute('aria-pressed', 'false');
-            target.setAttribute('aria-pressed', 'true');
-        };
-        
-        const handleThemeSelection = (event) => {
-            const target = event.target;
-            const isPressed = target.getAttribute('aria-pressed');
-            const theme = target.getAttribute('data-theme');        
-          
-            if(isPressed !== "true") {
-                applyTheme(theme);
-                localStorage.setItem('selected-theme', theme);
-                }
-            }
-        
-        const setInitialTheme = () => {
-            const savedTheme = localStorage.getItem('selected-theme');
-            if(savedTheme && savedTheme !== defaultTheme) {
-                applyTheme(savedTheme);
-                }
-            };
-        
-        setInitialTheme();
-        
-        const themeSwitcher = document.querySelector('.theme-switcher');
-        const buttons = themeSwitcher.querySelectorAll('button');
-        
-        buttons.forEach((button) => {
-            button.addEventListener('click', handleThemeSelection);
+    document.querySelectorAll('.theme-switcher button').forEach(button => {
+        button.addEventListener('click', () => {
+            const theme = button.getAttribute('data-theme');
+    
+            // Enable the selected theme, disable the rest
+            document.querySelectorAll('link[data-theme-style]').forEach(link => {
+                link.disabled = link.getAttribute('data-theme-style') !== theme;
             });
-
+    
+            // Update aria-pressed state
+            document.querySelectorAll('.theme-switcher button').forEach(btn => {
+                btn.setAttribute('aria-pressed', btn.getAttribute('data-theme') === theme);
+            });
+        });
+    });
     </script>
+
 </body>
 </html>
