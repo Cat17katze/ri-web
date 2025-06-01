@@ -3,8 +3,10 @@
 
 //in - file configuration, only used, if no config file is found/ deactivated
 //the variables with an Capital Letter define the name of the file or directory, the one with a lower one define, if the component is used
-$external_css=false; //do you want to load external css. Currently not supported!
-$External_css=''; //currently not supported
+
+$defaultTheme = 'ri';                   // Use 'ri' if not set
+$themeSelectorEnabled = true;   // Enable selector unless explicitly disabled
+$cssFolder =  __DIR__ . '/components/css';  // Default theme CSS folder
 
 // components of the page. please place them into the specified folder
 $Components_dir=__DIR__ . '/components/';
