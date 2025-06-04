@@ -12,13 +12,10 @@ This repo contains the RiWeb software written in php. It is developed for people
 
 ## Installation
 - either download this repo completely, or the index.php and config.php.
-- Create the required directories (if not already done)
+- Create the required directories (if not already done).
 - Change the config to your needs. (Disabling unwanted/ unused components, so you don't get any errors!)
 - Fill it with your content.
-[Optional]
-- Add update.php and auto_updater.php to the same directory as index.php.
-- Add a cronjob for auto_updater.php to execute it. It will automatically update your index.php when the security number is increased.
-
+- Or simply let update.php install a release! Put it on your server and let it install.
 ## Usage
 - check regularly for updates with your updater password. 
 
