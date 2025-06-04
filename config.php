@@ -1,38 +1,47 @@
 <?php
-// Configuration file for the RiWeb file cms
 
-//in - file configuration, only used, if no config file is found/ deactivated
-//the variables with an Capital Letter define the name of the file or directory, the one with a lower one define, if the component is used
+//RI- WEB Configurator
 
-$defaultTheme = 'ri';                   // Use 'ri' if not set
+$config_version = 1; //version of config
+$defaultTheme = 'ri';// Use ri if not set
 $themeSelectorEnabled = true;   // Enable selector unless explicitly disabled
-$cssFolder =  __DIR__ . '/components/css';  // Default theme CSS folder
+$cssFolder =  __DIR__ . '/components/css';  //  theme CSS folder
 
-// components of the page. please place them into the specified folder
-$Components_dir=__DIR__ . '/components/';
+// components of the system.
 
-$navbar=true; //above everything, sticky on desktops, usefull for navigation
-$Navbar='navbar.html';
+$Components_dir=__DIR__ . '/components/'; //the directory, where all following components have to be placed!
 
-$motd=true; //below the navbar, usefull for content (like logos or so) that should be on all sites
-$Motd='motd.html';
+$navbar=true; //above everything, sticky on desktops, usefull for navigation. Should contain the navigation links.
+$Navbar='navbar.html'; //name of the navbar file.
 
-$footer=true; //below the content
-$Footer='foot.html';
+$motd=true; //below the navbar, usefull for content (like logos or so) that should be on all sites.
+$Motd='motd.php'; //name of this file
 
-$blog=true; //the 'b' extension, needs the config-b.php file to operate. Otherwise it will not work.
-$Blog_dir=__DIR__ . '/blog/'; //blog directory, ./ means sub dir of doc root
+$footer=true; //below the content, on all pages.
+$Footer='foot.html'; //name of this file
 
-$download=false; //the 'd' extension, usefull for download- page links. Needs the config-d.php file to work.
-$Download_config='config-d.php'; //currently not used!!!
+//Extensions, optional.
 
-$page=true; //the 'p' extension. Needed, if you want to use the file based - cms - like system. You shouldt deactivate it. You need to configure the allowed pages.
-$allowed_pages = ['home.php', 'something.php', 'otherthing.html']; //the allowed pages (php or html) to be loaded into the content section. Only affects 'p' module.
+//pages
+$page=true; //the p extension. Needed, if you want to use the file based - cms - like system. You shouldt deactivate it. You need to configure the allowed pages.
+$allowed_pages = ['home.php']; //the allowed pages to be loaded into the content section via a link. php include is not affected!
 $Page_dir = __DIR__ . '/pages/'; // the allowed pages must be in this directory. No subfolders allowed. If you want to use sub- folders, please use the blog system.
 $page_default = 'home.php'; //displayed home page (nothing is specified, must be in page directory)
 
-$update_password = 'changeme!'; //password used for accessing the update.php
-$github_index_url = 'https://raw.githubusercontent.com/Cat17katze/ri-web/refs/heads/main/index.php'; //update source, change if you maintain your own.
-$update_log_emails = ['mail@example.com']; //Mail adresses for sending infos like log data
+//blog system
+$blog=true; //The Markdown blog extension. Needs Parsedown.php at document root! 
+$Blog_dir=__DIR__ . '/blog/'; //blog directory.
+
+//download system, not implemented yet!
+$download=false; //not implemented yet!
+$Download_config='config-d.php'; //not implemented yet.
+
+//Security
+
+//passwords 
+$update_pw = 'changeme!'; //password used for accessing the update.php
+$config_pw = 'changeme!'; //password used for accessing gui config. (c.php)
+$edit_pw = 'changeme!'; //password used for accessing the editor (edit.php)
+$no_edit = ['index.php','config.php','c.php', 'edit.php', 'update.php']; // hidden files/ folders, supports wildcard, no edit / no viewing is allowed!
 
 ?>
