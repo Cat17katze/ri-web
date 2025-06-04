@@ -1,0 +1,19 @@
+//Mandatory.txt, this file decides about the importance!
+index.php = o //always update
+update.php = o
+edit.php = o
+c.php = o
+config.php = c
+https://raw.githubusercontent.com/Cat17katze/parsedown/refs/heads/master/Parsedown.php = o
+version.txt = o
+
+components/foot.html = u
+components/motd.php = u
+components/navbar.html = u
+components/css/* = e //beispiel themes
+
+
+page/home.php = u
+
+blog/index.md = u
+blog/release/ri-web/notes.md = o
