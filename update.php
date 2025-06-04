@@ -5,7 +5,7 @@ session_start();
  */
 
 // CONFIGURATION
-$githubRepo = "Cat17katze/parsedown";
+$githubRepo = "Cat17katze/ri-web";
 $releaseApiUrl = "https://api.github.com/repos/$githubRepo/releases/latest";
 $backupDir = __DIR__ . '/backups';
 $versionFile = __DIR__ . '/version.txt';
@@ -454,6 +454,14 @@ echo "</form>";
     </table>
 <?php endif; ?>
 
+<table>
+    <th>Tools</th>
+    <tr>
+        <td><a href='edit.php'>Editor</a></td>
+        <td><a href='update.php'>Updater</a></td>
+        <td><a href='c.php'>Configurator</a></td>
+    </tr>
+</table>
 
 
 
